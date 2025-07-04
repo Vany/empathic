@@ -1,0 +1,27 @@
+[package]
+name = "empathic"
+version = "5.3.0"
+edition = "2024"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.0", features = ["full"] }
+inventory = "0.3"
+chrono = "0.4"
+ctrlc = "3.4"
+candle-core = { version = "0.8" }
+candle-nn = { version = "0.8" }
+candle-transformers = { version = "0.8" }
+candle-onnx = { version = "0.8" }
+tokenizers = { version = "0.20" }
+hf-hub = { version = "0.3", features = ["tokio"] }
+anyhow = { version = "1.0" }
+safetensors = { version = "0.4" }
+reqwest = { version = "0.11", features = ["json"] }
+tantivy = { version = "0.22" }
+uuid = { version = "1.0", features = ["v4"] }
+rayon = { version = "1.8" }
+
+[target.'cfg(unix)'.dependencies]
+signal-hook = "0.3"
