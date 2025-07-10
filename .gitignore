@@ -1,0 +1,47 @@
+# Rust
+/target/
+/test_output/
+
+# IDE
+/.idea/
+/.vscode/
+*.swp
+*.swo
+*~
+
+# Python (for any utility scripts)
+/.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# RAG data (user-specific)
+/rag_data/
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# Personal test files
+test_*.md
+test_*.py
+*_test.md
+debug_*.sh
+
+# Build artifacts
+*.exe
+*.pdb
