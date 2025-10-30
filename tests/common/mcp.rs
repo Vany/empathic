@@ -16,7 +16,7 @@ impl McpResult {
         let content_text = mcp_response
             .get("content")
             .and_then(|c| c.as_array())
-            .and_then(|arr| arr.get(0))
+            .and_then(|arr| arr.first())
             .and_then(|item| item.get("text"))
             .and_then(|text| text.as_str())
             .ok_or_else(|| anyhow!("❌ Invalid MCP response format: missing content[0].text"))?;
@@ -72,7 +72,7 @@ impl McpResult {
         // For read_file tool, content is directly in the MCP text field
         self.raw.get("content")
             .and_then(|c| c.as_array())
-            .and_then(|arr| arr.get(0))
+            .and_then(|arr| arr.first())
             .and_then(|item| item.get("text"))
             .and_then(|text| text.as_str())
     }

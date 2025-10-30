@@ -1,0 +1,50 @@
+//! 🐘 Gradle Tool - Clean ToolBuilder implementation
+
+use async_trait::async_trait;
+use serde::Deserialize;
+
+use crate::error::EmpathicResult;
+
+use crate::tools::{ToolBuilder, SchemaBuilder};
+use crate::config::Config;
+use super::executor_utils::{execute_command, CommandOutput};
+
+/// 🐘 Gradle Tool using modern ToolBuilder pattern
+pub struct GradleTool;
+
+#[derive(Deserialize)]
+pub struct GradleArgs {
+    #[serde(default)]
+    args: Vec<String>,
+    project: Option<String>,
+}
+
+pub type GradleOutput = CommandOutput;
+
+#[async_trait]
+impl ToolBuilder for GradleTool {
+    type Args = GradleArgs;
+    type Output = GradleOutput;
+
+    fn name() -> &'static str {
+        "gradle"
+    }
+    
+    fn description() -> &'static str {
+        "🐘 Execute gradle commands in project directory"
+    }
+    
+    fn schema() -> serde_json::Value {
+        SchemaBuilder::new()
+            .optional_array("args", "Gradle task arguments (e.g., ['build'], ['clean', 'test'])")
+            .optional_string("project", "Project name for execution directory")
+            .build()
+    }
+    
+    async fn run(args: Self::Args, config: &Config) -> EmpathicResult<Self::Output> {
+        execute_command("gradle", args.args, args.project.as_deref(), config).await
+    }
+}
+
+// 🔧 Implement Tool trait using the builder pattern
+crate::impl_tool_for_builder!(GradleTool);

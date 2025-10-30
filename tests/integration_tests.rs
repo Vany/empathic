@@ -4,24 +4,15 @@ use tokio::fs;
 
 #[tokio::test]
 async fn test_mcp_server_creation() {
-    let config = Config {
-        root_dir: PathBuf::from("/tmp"),
-        add_path: vec![],
-        log_level: "warn".to_string(),
-    };
+    let config = Config::new(PathBuf::from("/tmp"));
     
     let _server = McpServer::new(config);
-    // Server should be created successfully
-    assert!(true);
+    // Server creation succeeds - test passes if no panic
 }
 
 #[tokio::test]
 async fn test_config_project_path() {
-    let config = Config {
-        root_dir: PathBuf::from("/tmp"),
-        add_path: vec![PathBuf::from("/usr/local/bin")],
-        log_level: "warn".to_string(),
-    };
+    let config = Config::new(PathBuf::from("/tmp"));
     
     let project_path = config.project_path(Some("test_project"));
     assert_eq!(project_path, PathBuf::from("/tmp/test_project"));
@@ -68,11 +59,7 @@ async fn test_list_files_with_pattern() {
     fs::write(sub_dir.join("nested.rs"), "// Nested Rust file").await.unwrap();
     fs::write(sub_dir.join("other.txt"), "Other text").await.unwrap();
     
-    let config = Config {
-        root_dir: test_dir.clone(),
-        add_path: vec![],
-        log_level: "warn".to_string(),
-    };
+    let config = Config::new(test_dir.clone());
     
     let tool = ListFilesTool;
     

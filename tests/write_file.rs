@@ -212,7 +212,7 @@ async fn test_write_file_large_content() -> Result<()> {
     let tool = WriteFileTool;
     
     // Create large Unicode content
-    let large_content = unicode::large_repeating(100); // ~60KB
+    let large_content = unicode::large_repeating(150); // ~75KB to ensure > 50KB
     
     let result = tool.execute(
         json!({

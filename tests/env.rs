@@ -22,7 +22,8 @@ async fn test_env_basic_functionality() -> Result<()> {
         .get("text").unwrap().as_str().unwrap();
     
     let env_vars: serde_json::Value = serde_json::from_str(content_text)?;
-    let variables = env_vars.as_object().unwrap();
+    let response = env_vars.as_object().unwrap();
+    let variables = response.get("env_vars").unwrap().as_object().unwrap();
     
     // Should contain common environment variables
     assert!(variables.contains_key("PATH") || variables.contains_key("Path"));
@@ -32,6 +33,11 @@ async fn test_env_basic_functionality() -> Result<()> {
     
     // Should include our ROOT_DIR
     assert!(variables.contains_key("ROOT_DIR"));
+    
+    // Check response structure
+    assert!(response.contains_key("count"));
+    assert!(response.contains_key("path_enhanced"));
+    assert!(response.contains_key("root_dir_injected"));
     
     println!("✅ Environment variable access works ({} vars)", variables.len());
     
@@ -52,7 +58,8 @@ async fn test_env_no_project_context() -> Result<()> {
         .get("text").unwrap().as_str().unwrap();
     
     let env_vars: serde_json::Value = serde_json::from_str(content_text)?;
-    let variables = env_vars.as_object().unwrap();
+    let response = env_vars.as_object().unwrap();
+    let variables = response.get("env_vars").unwrap().as_object().unwrap();
     
     // Should still work even without project-specific context
     assert!(!variables.is_empty());
@@ -75,7 +82,8 @@ async fn test_env_common_variables() -> Result<()> {
         .get("text").unwrap().as_str().unwrap();
     
     let env_vars: serde_json::Value = serde_json::from_str(content_text)?;
-    let variables = env_vars.as_object().unwrap();
+    let response = env_vars.as_object().unwrap();
+    let variables = response.get("env_vars").unwrap().as_object().unwrap();
     
     // Common variables that should exist on most systems
     let common_vars = [
@@ -117,7 +125,8 @@ async fn test_env_response_structure() -> Result<()> {
     
     let content_text = content[0]["text"].as_str().unwrap();
     let env_vars: serde_json::Value = serde_json::from_str(content_text)?;
-    let variables = env_vars.as_object().unwrap();
+    let response = env_vars.as_object().unwrap();
+    let variables = response.get("env_vars").unwrap().as_object().unwrap();
     
     // All values should be strings
     for (key, value) in variables {

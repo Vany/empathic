@@ -1,6 +1,6 @@
 [package]
 name = "empathic"
-version = "1.0.0"
+version = "2.0.0"
 edition = "2024"
 
 [lib]
@@ -12,19 +12,25 @@ name = "empathic"
 path = "src/main.rs"
 
 [dependencies]
-tokio = { version = "1.0", features = ["full"] }
+tokio = { version = "1.41", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 async-trait = "0.1"
 anyhow = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
+env_logger = "0.11"
 unicode-segmentation = "1.12"
 walkdir = "2.5"
-regex = "1.10"
+regex = "1.11"
 glob = "0.3"
 ignore = "0.4"
+lsp-types = "0.97"
+thiserror = "1.0"
+url = "2.5"
+log = "0.4"
 
 [dev-dependencies]
 tokio-test = "0.4"
-tempfile = "3.0"
+tempfile = "3.14"
 rand = "0.8"
+futures = "0.3"

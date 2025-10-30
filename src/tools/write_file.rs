@@ -1,90 +1,82 @@
+//! ✍️ Write File Tool - Clean ToolBuilder implementation
+
 use async_trait::async_trait;
-use serde_json::{json, Value};
-use anyhow::Result;
+use serde::{Deserialize, Serialize};
 
+use crate::tools::{ToolBuilder, SchemaBuilder, default_fs_path};
 use crate::config::Config;
-use crate::tools::Tool;
 use crate::fs::FileOps;
+use crate::error::EmpathicResult;
 
+/// ✍️ Write File Tool using modern ToolBuilder pattern
 pub struct WriteFileTool;
 
+#[derive(Deserialize)]
+pub struct WriteFileArgs {
+    path: Option<String>,
+    content: String,
+    start: Option<usize>,
+    end: Option<usize>,
+    project: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct WriteFileOutput {
+    success: bool,
+    path: String,
+    bytes_written: usize,
+    start: Option<usize>,
+    end: Option<usize>,
+    lsp_synced: bool,
+}
+
 #[async_trait]
-impl Tool for WriteFileTool {
-    fn name(&self) -> &'static str {
+impl ToolBuilder for WriteFileTool {
+    type Args = WriteFileArgs;
+    type Output = WriteFileOutput;
+
+    fn name() -> &'static str {
         "write_file"
     }
     
-    fn description(&self) -> &'static str {
+    fn description() -> &'static str {
         "✍️ Write file content with optional line-based replacement"
     }
     
-    fn schema(&self) -> Value {
-        json!({
-            "type": "object",
-            "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "Path to the file to write"
-                },
-                "content": {
-                    "type": "string",
-                    "description": "Content to write to the file"
-                },
-                "start": {
-                    "type": "integer",
-                    "description": "Starting line number (0-indexed) for replacement",
-                    "minimum": 0
-                },
-                "end": {
-                    "type": "integer",
-                    "description": "Ending line number (exclusive) for replacement",
-                    "minimum": 0
-                },
-                "project": {
-                    "type": "string",
-                    "description": "Project name for path resolution"
-                }
-            },
-            "required": ["path", "content"]
-        })
+    fn schema() -> serde_json::Value {
+        SchemaBuilder::new()
+            .optional_string("path", "Path to the file to write (default: project root \".\" when project is set)")
+            .required_string("content", "Content to write to the file")
+            .optional_integer("start", "Starting line number (0-indexed) for replacement", Some(0))
+            .optional_integer("end", "Ending line number (exclusive) for replacement", Some(0))
+            .optional_string("project", "Project name for path resolution")
+            .build()
     }
     
-    async fn execute(&self, args: Value, config: &Config) -> Result<Value> {
-        let path_str = args.get("path")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("path is required"))?;
+    async fn run(args: Self::Args, config: &Config) -> EmpathicResult<Self::Output> {
+        let path = default_fs_path(args.path, args.project.as_deref());
+        let working_dir = config.project_path(args.project.as_deref());
+        let file_path = working_dir.join(&path);
         
-        let content = args.get("content")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("content is required"))?;
-        
-        let project = args.get("project").and_then(|v| v.as_str());
-        let working_dir = config.project_path(project);
-        let file_path = working_dir.join(path_str);
-        
-        let start = args.get("start")
-            .and_then(|v| v.as_u64())
-            .map(|v| v as usize);
-        
-        let end = args.get("end")
-            .and_then(|v| v.as_u64())
-            .map(|v| v as usize);
-        
-        if let Some(start_line) = start {
-            FileOps::write_file_range(&file_path, content, start_line, end).await?;
+        // Write the file
+        if let Some(start_line) = args.start {
+            FileOps::write_file_range(&file_path, &args.content, start_line, args.end).await?;
         } else {
-            FileOps::write_file(&file_path, content).await?;
+            FileOps::write_file(&file_path, &args.content).await?;
         }
         
-        // Return success message with file info
-        let response = json!({
-            "success": true,
-            "path": file_path.to_string_lossy(),
-            "bytes_written": content.len(),
-            "start": start,
-            "end": end
-        });
+        // 🚀 No LSP sync - let rust-analyzer detect changes via file watchers
         
-        Ok(crate::tools::format_json_response(&response)?)
+        Ok(WriteFileOutput {
+            success: true,
+            path: file_path.to_string_lossy().to_string(),
+            bytes_written: args.content.len(),
+            start: args.start,
+            end: args.end,
+            lsp_synced: false, // 🚀 LSP sync removed for performance
+        })
     }
 }
+
+// 🔧 Implement Tool trait using the builder pattern
+crate::impl_tool_for_builder!(WriteFileTool);

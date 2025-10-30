@@ -1,69 +1,86 @@
+//! 🗑️ Delete File Tool - Modern ToolBuilder implementation
+
 use async_trait::async_trait;
-use serde_json::{json, Value};
-use anyhow::Result;
+use serde::{Deserialize, Serialize};
 
+use crate::tools::{ToolBuilder, SchemaBuilder};
 use crate::config::Config;
-use crate::tools::Tool;
 use crate::fs::FileOps;
+use crate::error::{EmpathicResult, EmpathicError};
 
+/// 🗑️ Delete File Tool using modern ToolBuilder pattern
 pub struct DeleteFileTool;
 
+#[derive(Deserialize)]
+pub struct DeleteFileArgs {
+    path: Option<String>,
+    #[serde(default)]
+    recursive: bool,
+    project: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct DeleteFileOutput {
+    success: bool,
+    path: String,
+    was_directory: bool,
+    recursive: bool,
+    lsp_closed: bool,
+}
+
 #[async_trait]
-impl Tool for DeleteFileTool {
-    fn name(&self) -> &'static str {
+impl ToolBuilder for DeleteFileTool {
+    type Args = DeleteFileArgs;
+    type Output = DeleteFileOutput;
+
+    fn name() -> &'static str {
         "delete_file"
     }
     
-    fn description(&self) -> &'static str {
+    fn description() -> &'static str {
         "🗑️ Delete file or directory with optional recursive deletion"
     }
     
-    fn schema(&self) -> Value {
-        json!({
-            "type": "object",
-            "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "Path to the file or directory to delete"
-                },
-                "recursive": {
-                    "type": "boolean",
-                    "description": "Delete directories recursively",
-                    "default": false
-                },
-                "project": {
-                    "type": "string",
-                    "description": "Project name for path resolution"
-                }
-            },
-            "required": ["path"]
-        })
+    fn schema() -> serde_json::Value {
+        SchemaBuilder::new()
+            .required_string("path", "Path to the file or directory to delete")
+            .optional_bool("recursive", "Delete directories recursively", Some(false))
+            .optional_string("project", "Project name for path resolution")
+            .build()
     }
     
-    async fn execute(&self, args: Value, config: &Config) -> Result<Value> {
-        let path_str = args.get("path")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("path is required"))?;
-        
-        let recursive = args.get("recursive")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-        
-        let project = args.get("project").and_then(|v| v.as_str());
-        let working_dir = config.project_path(project);
-        let file_path = working_dir.join(path_str);
+    async fn run(args: Self::Args, config: &Config) -> EmpathicResult<Self::Output> {
+        let working_dir = config.project_path(args.project.as_deref());
+        let file_path = working_dir.join(
+            args.path
+                .as_ref()
+                .ok_or_else(|| EmpathicError::MissingRequiredParameter { parameter: "path".to_string() })?
+        );
         
         // Check if path exists and get its type
-        let metadata = tokio::fs::metadata(&file_path).await?;
+        let metadata = tokio::fs::metadata(&file_path).await
+            .map_err(|_| EmpathicError::FileNotFound { path: file_path.clone() })?;
         let is_dir = metadata.is_dir();
         
-        FileOps::delete_file(&file_path, recursive).await?;
+        // 🚀 No LSP sync needed - rust-analyzer detects file deletions automatically
+        let lsp_closed = false;
         
-        Ok(crate::tools::format_json_response(&json!({
-            "success": true,
-            "path": file_path.to_string_lossy(),
-            "was_directory": is_dir,
-            "recursive": recursive
-        }))?)
+        FileOps::delete_file(&file_path, args.recursive).await
+            .map_err(|e| EmpathicError::FileOperationFailed {
+                operation: "delete".to_string(),
+                path: file_path.clone(),
+                reason: e.to_string(),
+            })?;
+        
+        Ok(DeleteFileOutput {
+            success: true,
+            path: file_path.to_string_lossy().to_string(),
+            was_directory: is_dir,
+            recursive: args.recursive,
+            lsp_closed,
+        })
     }
 }
+
+// 🔧 Implement Tool trait using the builder pattern
+crate::impl_tool_for_builder!(DeleteFileTool);

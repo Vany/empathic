@@ -1,74 +1,118 @@
+//! 📖 Read File Tool - Clean ToolBuilder implementation with custom text formatting
+
 use async_trait::async_trait;
-use serde_json::{json, Value};
-use anyhow::Result;
+use serde::Deserialize;
+use serde_json::Value;
 
+use crate::tools::{Tool, ToolBuilder, SchemaBuilder, format_text_response, default_fs_path};
 use crate::config::Config;
-use crate::tools::Tool;
 use crate::fs::FileOps;
+use crate::error::EmpathicResult;
 
+/// 📖 Read File Tool using modern ToolBuilder pattern (with custom text output)
 pub struct ReadFileTool;
 
+#[derive(Deserialize)]
+pub struct ReadFileArgs {
+    path: Option<String>,
+    #[serde(default)]
+    line_offset: Option<usize>,
+    line_length: Option<usize>,
+    project: Option<String>,
+}
+
+pub type ReadFileOutput = String;
+
 #[async_trait]
-impl Tool for ReadFileTool {
-    fn name(&self) -> &'static str {
+impl ToolBuilder for ReadFileTool {
+    type Args = ReadFileArgs;
+    type Output = String;
+
+    fn name() -> &'static str {
         "read_file"
     }
     
-    fn description(&self) -> &'static str {
-        "📖 Read file content with optional line-based chunking"
+    fn description() -> &'static str {
+        "📖 Read file content with optional line-based chunking (auto-lists directories)"
     }
     
-    fn schema(&self) -> Value {
-        json!({
-            "type": "object",
-            "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "Path to the file to read"
-                },
-                "line_offset": {
-                    "type": "integer",
-                    "description": "Starting line number (0-indexed)",
-                    "minimum": 0
-                },
-                "line_length": {
-                    "type": "integer",
-                    "description": "Number of lines to read",
-                    "minimum": 1
-                },
-                "project": {
-                    "type": "string",
-                    "description": "Project name for path resolution"
+    fn schema() -> serde_json::Value {
+        SchemaBuilder::new()
+            .optional_string("path", "Path to the file to read (default: project root \".\"). If path is a directory, lists contents instead")
+            .optional_integer("line_offset", "Starting line number (0-indexed)", Some(0))
+            .optional_integer("line_length", "Number of lines to read", Some(1))
+            .optional_string("project", "Project name for path resolution")
+            .build()
+    }
+    
+    async fn run(args: Self::Args, config: &Config) -> EmpathicResult<Self::Output> {
+        let path = default_fs_path(args.path, args.project.as_deref());
+        let working_dir = config.project_path(args.project.as_deref());
+        let file_path = working_dir.join(&path);
+        
+        // 🎯 AI Enhancement: Auto-detect directories and list contents instead of erroring
+        if file_path.is_dir() {
+            // List directory contents (non-recursive) when path is a directory
+            let files = FileOps::list_files(&file_path, false, false, None).await?;
+            
+            // Format as readable directory listing
+            let mut listing = format!("📁 Directory listing for: {}\n\n", file_path.display());
+            
+            if files.is_empty() {
+                listing.push_str("  (empty directory)\n");
+            } else {
+                // Get count before consuming files in for loop
+                let file_count = files.len();
+                for file in files {
+                    let file_type = if file.is_dir { "📁" } else { "📄" };
+                    listing.push_str(&format!("  {} {}\n", file_type, file.name));
                 }
-            },
-            "required": ["path"]
-        })
-    }
-    
-    async fn execute(&self, args: Value, config: &Config) -> Result<Value> {
-        let path_str = args.get("path")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("path is required"))?;
+                listing.push_str(&format!("\nTotal: {} items", file_count));
+            }
+            
+            return Ok(listing);
+        }
         
-        let project = args.get("project").and_then(|v| v.as_str());
-        let working_dir = config.project_path(project);
-        let file_path = working_dir.join(path_str);
-        
-        let line_offset = args.get("line_offset")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0) as usize;
-        
-        let line_length = args.get("line_length")
-            .and_then(|v| v.as_u64())
-            .map(|v| v as usize);
-        
-        let content = if line_offset > 0 || line_length.is_some() {
-            FileOps::read_file_chunk(&file_path, line_offset, line_length).await?
+        // Original file reading logic
+        let content = if let Some(offset) = args.line_offset {
+            if offset > 0 || args.line_length.is_some() {
+                FileOps::read_file_chunk(&file_path, offset, args.line_length).await?
+            } else {
+                FileOps::read_file(&file_path).await?
+            }
         } else {
             FileOps::read_file(&file_path).await?
         };
+
+        Ok(content)
+    }
+}
+
+// 🎯 Custom Tool implementation for proper text formatting (not using macro)
+#[async_trait]
+impl Tool for ReadFileTool {
+    fn name(&self) -> &'static str {
+        <ReadFileTool as ToolBuilder>::name()
+    }
+    
+    fn description(&self) -> &'static str {
+        <ReadFileTool as ToolBuilder>::description()
+    }
+    
+    fn schema(&self) -> Value {
+        <ReadFileTool as ToolBuilder>::schema()
+    }
+    
+    async fn execute(&self, args: Value, config: &Config) -> EmpathicResult<Value> {
+        let parsed_args = serde_json::from_value(args)
+            .map_err(|e| crate::error::EmpathicError::McpParameterInvalid { 
+                parameter: "args".to_string(), 
+                value: format!("Invalid arguments for {}: {}", <ReadFileTool as ToolBuilder>::name(), e)
+            })?;
         
-        // Format as MCP-compliant text content
-        Ok(crate::tools::format_text_response(&content))
+        let content = Self::run(parsed_args, config).await?;
+        
+        // 📝 Use text formatting for raw file content (not JSON)
+        Ok(format_text_response(&content))
     }
 }

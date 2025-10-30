@@ -4,7 +4,7 @@ mod common;
 
 use anyhow::Result;
 use common::*;
-use empathic::tools::{Tool, executor::GitTool};
+use empathic::tools::{Tool, git::GitTool};
 use serde_json::json;
 
 async fn init_git_repo(env: &TestEnv, project_name: &str) -> Result<()> {
@@ -343,7 +343,6 @@ async fn test_git_large_output() -> Result<()> {
     // Create many files
     let many_files: Vec<_> = (0..50)
         .map(|i| (format!("file_{:02}.txt", i), format!("Content of file {}", i)))
-        .map(|(name, content)| (name, content))
         .collect();
     
     for (filename, content) in &many_files {
